@@ -1,15 +1,31 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // Se estiver rodando no domínio de produção (isentidos.com.br ou isppreparatorios.com.br)
+    if (host.includes('isentidos.com.br') || host.includes('isppreparatorios.com.br')) {
+      const apiHost = host.includes('isentidosbot') 
+        ? host.replace('isentidosbot', 'isentidosbot-api')
+        : 'isentidosbot-api.isentidos.com.br';
+      return `${protocol}//${apiHost}/api`;
+    }
+  }
+
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
+};
 
 const api = axios.create({
-  baseURL: `${API_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 api.interceptors.request.use((config) => {
+  config.baseURL = getBaseUrl();
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('isentidos_token');
     if (token) {

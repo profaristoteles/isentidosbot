@@ -39,7 +39,8 @@ export default function GruposPage() {
       alert(res.data.message);
       loadGrupos();
     } catch (err: any) {
-      alert(err?.response?.data?.error || 'Erro ao sincronizar com Evolution API.');
+      const errorMsg = err?.response?.data?.error || err?.message || 'Erro ao sincronizar com Evolution API.';
+      alert(`Erro de Sincronização: ${errorMsg}`);
     } finally {
       setSyncing(false);
     }
