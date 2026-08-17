@@ -79,7 +79,7 @@ async function startServer() {
     await initDb();
     initCronJobs();
 
-    app.listen(PORT, () => {
+    app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`🚀 Backend rodando com sucesso na porta ${PORT} (Timezone: ${process.env.TZ})`);
     });
   } catch (error) {

@@ -77,6 +77,8 @@ services:
     restart: always
     environment:
       NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: 3000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://isentidosbot-api.isentidos.com.br}
     depends_on:
       - backend
