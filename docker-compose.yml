@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: isentidosbot-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-isentidos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-isentidos_secret_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-isentidosbot}
+      TZ: America/Fortaleza
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-isentidos} -d ${POSTGRES_DB:-isentidosbot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: isentidosbot-rsshub
+    restart: always
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: memory
+      PUPPETEER_WS_ENDPOINT: ''
+      TZ: America/Fortaleza
+    networks:
+      - internal_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: isentidosbot-backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      TZ: America/Fortaleza
+      DATABASE_URL: postgres://${POSTGRES_USER:-isentidos}:${POSTGRES_PASSWORD:-isentidos_secret_2026}@postgres:5432/${POSTGRES_DB:-isentidosbot}
+      JWT_SECRET: ${JWT_SECRET:-super-secret-key-isentidos-2026}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://204.168.132.246:8080}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-your-evolution-key}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-isentidos}
+      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET:-sua_chave_secreta_webhook}
+      RSSHUB_URL: http://rsshub:1200
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@isentidos.com.br}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rsshub:
+        condition: service_started
+    networks:
+      - internal_network
+      - traefik_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.isentidosbot-backend.rule=Host(`bot-api.isppreparatorios.com.br`)"
+      - "traefik.http.routers.isentidosbot-backend.entrypoints=websecure"
+      - "traefik.http.routers.isentidosbot-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.isentidosbot-backend.loadbalancer.server.port=5000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: isentidosbot-frontend
+    restart: always
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://bot-api.isppreparatorios.com.br}
+    depends_on:
+      - backend
+    networks:
+      - internal_network
+      - traefik_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.isentidosbot-frontend.rule=Host(`bot.isppreparatorios.com.br`)"
+      - "traefik.http.routers.isentidosbot-frontend.entrypoints=websecure"
+      - "traefik.http.routers.isentidosbot-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.isentidosbot-frontend.loadbalancer.server.port=3000"
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+networks:
+  internal_network:
+    driver: bridge
+  traefik_default:
+    external: true
