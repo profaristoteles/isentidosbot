@@ -63,7 +63,7 @@ services:
       - traefik_default
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.isentidosbot-backend.rule=Host(`isentidobot-api.isentidos.com.br`)"
+      - "traefik.http.routers.isentidosbot-backend.rule=Host(`isentidosbot-api.isentidos.com.br`)"
       - "traefik.http.routers.isentidosbot-backend.entrypoints=websecure"
       - "traefik.http.routers.isentidosbot-backend.tls.certresolver=letsencrypt"
       - "traefik.http.services.isentidosbot-backend.loadbalancer.server.port=5000"
@@ -76,7 +76,7 @@ services:
     restart: always
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://isentidobot-api.isentidos.com.br}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://isentidosbot-api.isentidos.com.br}
     depends_on:
       - backend
     networks:
@@ -84,7 +84,7 @@ services:
       - traefik_default
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.isentidosbot-frontend.rule=Host(`isentidobot.isentidos.com.br`)"
+      - "traefik.http.routers.isentidosbot-frontend.rule=Host(`isentidosbot.isentidos.com.br`)"
       - "traefik.http.routers.isentidosbot-frontend.entrypoints=websecure"
       - "traefik.http.routers.isentidosbot-frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.isentidosbot-frontend.loadbalancer.server.port=3000"
