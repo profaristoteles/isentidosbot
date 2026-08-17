@@ -108,13 +108,15 @@ router.post('/sync', async (req: AuthRequest, res: Response) => {
     }
 
     return res.json({
-      message: `${importados} novo(s) grupo(s) importado(s) da Evolution API.`,
+      message: `${importados} novo(s) grupo(s) importado(s) da Evolution API (Total encontrados: ${fetched.length}).`,
       totalEncontrados: fetched.length,
       importados,
     });
   } catch (error: any) {
     console.error('Erro ao sincronizar grupos:', error);
-    return res.status(500).json({ error: 'Erro ao sincronizar grupos da Evolution API.' });
+    return res.status(500).json({ 
+      error: `Falha de conexão com a Evolution API: ${error.message}` 
+    });
   }
 });
 
