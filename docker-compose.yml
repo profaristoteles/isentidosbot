@@ -60,10 +60,10 @@ services:
         condition: service_started
     networks:
       - internal_network
-      - traefik_default
+      - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik_default"
+      - "traefik.docker.network=proxy"
       - "traefik.http.routers.isentidosbot-backend.rule=Host(`isentidosbot-api.isentidos.com.br`)"
       - "traefik.http.routers.isentidosbot-backend.entrypoints=websecure"
       - "traefik.http.routers.isentidosbot-backend.tls.certresolver=letsencrypt"
@@ -84,10 +84,10 @@ services:
       - backend
     networks:
       - internal_network
-      - traefik_default
+      - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik_default"
+      - "traefik.docker.network=proxy"
       - "traefik.http.routers.isentidosbot-frontend.rule=Host(`isentidosbot.isentidos.com.br`)"
       - "traefik.http.routers.isentidosbot-frontend.entrypoints=websecure"
       - "traefik.http.routers.isentidosbot-frontend.tls.certresolver=letsencrypt"
@@ -100,5 +100,5 @@ volumes:
 networks:
   internal_network:
     driver: bridge
-  traefik_default:
+  proxy:
     external: true
