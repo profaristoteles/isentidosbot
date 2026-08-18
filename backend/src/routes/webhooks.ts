@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import { query } from '../db';
 import { webhookSecretMiddleware } from '../middleware/webhookSecret';
 import { sendTextMessage } from '../services/evolution';
@@ -8,11 +9,34 @@ const router = Router();
 // Aplicar Middleware de Segurança (Validação de EVOLUTION_WEBHOOK_SECRET -> HTTP 401 se inválido)
 router.use(webhookSecretMiddleware);
 
+// Função auxiliar para repasse assíncrono (fire-and-forget) para o EvoCRM
+function forwardToEvoCRM(headers: Request['headers'], body: any) {
+  const targetUrl = process.env.EVOCRM_WEBHOOK_URL || 'https://evocrmapi.isentidos.net.br/webhooks/whatsapp/evolution';
+
+  const forwardHeaders: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+  if (headers['x-webhook-secret']) {
+    forwardHeaders['x-webhook-secret'] = headers['x-webhook-secret'] as string;
+  }
+  if (headers['apikey']) {
+    forwardHeaders['apikey'] = headers['apikey'] as string;
+  }
+
+  axios.post(targetUrl, body, { headers: forwardHeaders, timeout: 10000 })
+    .catch((err) => {
+      console.warn(`⚠️ [EvoCRM Webhook Forwarding Warning] Falha ao repassar evento para ${targetUrl}: ${err.message}`);
+    });
+}
+
 // POST /api/webhooks/evolution
 router.post('/evolution', async (req: Request, res: Response) => {
   try {
     const body = req.body;
     const event = body?.event || body?.type;
+
+    // Repasse assíncrono de forma fire-and-forget para o EvoCRM (não bloqueia nem desacelera o response)
+    forwardToEvoCRM(req.headers, body);
 
     // Verificar se é um evento de atualização de participantes do grupo
     const isParticipantUpdate = 
@@ -21,8 +45,8 @@ router.post('/evolution', async (req: Request, res: Response) => {
       body?.data?.action === 'add';
 
     if (!isParticipantUpdate) {
-      // Outros eventos recebidos são ignorados pacificamente com status 200
-      return res.status(200).json({ status: 'ignored', reason: 'Evento não aplicável para boas-vindas' });
+      // Outros eventos recebidos são repassados ao EvoCRM e ignorados pacificamente de boas-vindas com status 200
+      return res.status(200).json({ status: 'ignored', reason: 'Evento repassado ao EvoCRM; não aplicável para boas-vindas' });
     }
 
     const data = body?.data || body;
