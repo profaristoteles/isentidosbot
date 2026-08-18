@@ -19,7 +19,25 @@ export async function initDb() {
     if (fs.existsSync(schemaPath)) {
       const sql = fs.readFileSync(schemaPath, 'utf8');
       await client.query(sql);
-      console.log('✅ Tabelas verificadas/criadas com sucesso.');
+      
+      // Aplicar migrações para tabelas existentes
+      await client.query(`
+        ALTER TABLE integracoes ADD COLUMN IF NOT EXISTS gotejamento_quantidade INTEGER DEFAULT 1;
+        ALTER TABLE integracoes ADD COLUMN IF NOT EXISTS gotejamento_periodo VARCHAR(20) DEFAULT 'dia';
+
+        CREATE TABLE IF NOT EXISTS integracao_grupos (
+            id SERIAL PRIMARY KEY,
+            integracao_id INTEGER REFERENCES integracoes(id) ON DELETE CASCADE,
+            grupo_id INTEGER REFERENCES grupos(id) ON DELETE CASCADE,
+            UNIQUE(integracao_id, grupo_id)
+        );
+
+        INSERT INTO integracao_grupos (integracao_id, grupo_id)
+        SELECT id, grupo_id FROM integracoes WHERE grupo_id IS NOT NULL
+        ON CONFLICT (integracao_id, grupo_id) DO NOTHING;
+      `);
+
+      console.log('✅ Tabelas, migrações de múltiplos grupos e colunas de gotejamento verificadas/criadas com sucesso.');
     }
 
     // Criar Usuário Admin Padrão se não existir
