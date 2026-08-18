@@ -58,7 +58,7 @@ router.post('/evolution', async (req: Request, res: Response) => {
     }
 
     const groupJid = data?.id || data?.groupJid || data?.jid;
-    const participants: string[] = data?.participants || [];
+    const participants: any[] = data?.participants || [];
 
     if (!groupJid || participants.length === 0) {
       return res.status(400).json({ error: 'Payload de webhook inválido: JID ou participantes ausentes' });
@@ -84,33 +84,62 @@ router.post('/evolution', async (req: Request, res: Response) => {
 
     const boasVindas = bvRes.rows[0];
 
-    for (const participantJid of participants) {
-      // Extrair número limpo
-      const rawNumber = participantJid.split('@')[0];
-      const pushName = data?.pushName || data?.notify || rawNumber;
-      
-      // Substituir variáveis dinâmicas no template
-      let message = boasVindas.mensagem;
-      message = message.replace(/\{nome\}/g, pushName);
-      message = message.replace(/\{pushName\}/g, pushName);
-      message = message.replace(/\{numero\}/g, rawNumber);
-      message = message.replace(/\{grupo\}/g, grupo.nome);
+    for (const item of participants) {
+      try {
+        let participantJid = '';
+        if (typeof item === 'string') {
+          participantJid = item;
+        } else if (typeof item === 'object' && item !== null) {
+          participantJid = item.phoneNumber || item.id || '';
+        } else {
+          participantJid = String(item || '');
+        }
 
-      // Disparar mensagem de boas-vindas via Evolution API
-      await sendTextMessage(groupJid, message);
+        if (!participantJid) {
+          console.warn(`⚠️ [Webhook] JID de participante inválido ou vazio:`, item);
+          continue;
+        }
 
-      // Registrar histórico no log
-      await query(
-        `INSERT INTO logs (tipo_evento, grupo_id, detalhe, status) VALUES ($1, $2, $3, $4)`,
-        [
-          'boas_vindas',
-          grupo.id,
-          `Boas-vindas enviada para ${pushName} (${rawNumber}) no grupo "${grupo.nome}"`,
-          'sucesso',
-        ]
-      );
+        // Extrair número limpo da string resolvida
+        const rawNumber = participantJid.split('@')[0];
+        const pushName = data?.pushName || data?.notify || rawNumber;
+        
+        // Substituir variáveis dinâmicas no template
+        let message = boasVindas.mensagem;
+        message = message.replace(/\{nome\}/g, pushName);
+        message = message.replace(/\{pushName\}/g, pushName);
+        message = message.replace(/\{numero\}/g, rawNumber);
+        message = message.replace(/\{grupo\}/g, grupo.nome);
 
-      console.log(`✅ [Webhook] Mensagem de boas-vindas enviada para ${pushName} no grupo "${grupo.nome}"`);
+        // Disparar mensagem de boas-vindas via Evolution API
+        await sendTextMessage(groupJid, message);
+
+        // Registrar histórico no log
+        await query(
+          `INSERT INTO logs (tipo_evento, grupo_id, detalhe, status) VALUES ($1, $2, $3, $4)`,
+          [
+            'boas_vindas',
+            grupo.id,
+            `Boas-vindas enviada para ${pushName} (${rawNumber}) no grupo "${grupo.nome}"`,
+            'sucesso',
+          ]
+        );
+
+        console.log(`✅ [Webhook] Mensagem de boas-vindas enviada para ${pushName} (${rawNumber}) no grupo "${grupo.nome}"`);
+      } catch (itemError: any) {
+        console.error(`⚠️ [Webhook Error] Falha ao processar participante no grupo "${grupo.nome}":`, itemError);
+        try {
+          await query(
+            `INSERT INTO logs (tipo_evento, grupo_id, detalhe, status) VALUES ($1, $2, $3, $4)`,
+            [
+              'boas_vindas',
+              grupo.id,
+              `Falha ao enviar boas-vindas para participante: ${itemError.message}`,
+              'erro',
+            ]
+          );
+        } catch (_) {}
+      }
     }
 
     return res.status(200).json({ status: 'success', message: 'Boas-vindas enviada(s) com sucesso' });
