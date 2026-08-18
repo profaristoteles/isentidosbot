@@ -67,6 +67,13 @@ Copie o arquivo `.env.example` para `.env` e ajuste as credenciais:
 cp .env.example .env
 ```
 
+Principais variáveis de ambiente do backend:
+- `BACKEND_PUBLIC_URL`: URL pública da API Backend (ex: `https://isentidosbot-api.isentidos.com.br`). Utilizada para gerar a URL pública acessível dos arquivos de mídia enviados à Evolution API.
+- `NEXT_PUBLIC_API_URL`: URL pública da API Backend acessível pelo Frontend (ex: `https://isentidosbot-api.isentidos.com.br`).
+- `EVOLUTION_API_URL`: URL base da Evolution API v2.3.7.
+- `EVOLUTION_API_KEY`: API Key da Evolution API.
+- `EVOLUTION_WEBHOOK_SECRET`: Token secreto de autenticação do webhook da Evolution API.
+
 ### 3. Execução via Docker Compose (VPS)
 ```bash
 docker-compose up -d --build

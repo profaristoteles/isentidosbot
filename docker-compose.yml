@@ -42,6 +42,7 @@ services:
       NODE_ENV: production
       PORT: 5000
       TZ: America/Fortaleza
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-https://isentidosbot-api.isentidos.com.br}
       DATABASE_URL: postgres://${POSTGRES_USER:-isentidos}:${POSTGRES_PASSWORD:-isentidos_secret_2026}@postgres:5432/${POSTGRES_DB:-isentidosbot}
       JWT_SECRET: ${JWT_SECRET:-super-secret-key-isentidos-2026}
       EVOLUTION_API_URL: ${EVOLUTION_API_URL:-http://204.168.132.246:8080}

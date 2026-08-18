@@ -64,7 +64,7 @@ router.post('/', upload.single('arquivo'), async (req: AuthRequest, res: Respons
 
     if (file) {
       // Gerar URL pública/estática acessível para a Evolution API enviar
-      const host = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const host = process.env.BACKEND_PUBLIC_URL || 'http://localhost:5000';
       arquivo_url = `${host}/uploads/${file.filename}`;
       nome_arquivo = file.originalname;
       tipo_arquivo = file.mimetype;
