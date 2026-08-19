@@ -17,10 +17,17 @@ CREATE TABLE IF NOT EXISTS grupos (
 
 CREATE TABLE IF NOT EXISTS boas_vindas (
     id SERIAL PRIMARY KEY,
-    grupo_id INTEGER UNIQUE REFERENCES grupos(id) ON DELETE CASCADE,
+    grupo_id INTEGER REFERENCES grupos(id) ON DELETE CASCADE,
     mensagem TEXT NOT NULL,
     ativo BOOLEAN DEFAULT true,
     criado_em TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS boas_vindas_grupos (
+    id SERIAL PRIMARY KEY,
+    boas_vindas_id INTEGER REFERENCES boas_vindas(id) ON DELETE CASCADE,
+    grupo_id INTEGER REFERENCES grupos(id) ON DELETE CASCADE,
+    UNIQUE(boas_vindas_id, grupo_id)
 );
 
 CREATE TABLE IF NOT EXISTS agendamentos (
@@ -79,5 +86,7 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE INDEX IF NOT EXISTS idx_agendamentos_status_data ON agendamentos (status, data_envio);
 CREATE INDEX IF NOT EXISTS idx_integracoes_ativo ON integracoes (ativo);
 CREATE INDEX IF NOT EXISTS idx_integracao_grupos_integracao ON integracao_grupos (integracao_id);
+CREATE INDEX IF NOT EXISTS idx_boas_vindas_grupos_bv ON boas_vindas_grupos (boas_vindas_id);
+CREATE INDEX IF NOT EXISTS idx_boas_vindas_grupos_grupo ON boas_vindas_grupos (grupo_id);
 CREATE INDEX IF NOT EXISTS idx_fila_conteudo_integracao_status ON fila_conteudo (integracao_id, status, data_publicacao_original ASC);
 CREATE INDEX IF NOT EXISTS idx_logs_criado_em ON logs (criado_em DESC);

@@ -75,11 +75,22 @@ router.post('/evolution', async (req: Request, res: Response) => {
 
     const grupo = grupoRes.rows[0];
 
-    // Buscar mensagem de boas-vindas para este grupo
-    const bvRes = await query('SELECT * FROM boas_vindas WHERE grupo_id = $1 AND ativo = true', [grupo.id]);
-    if (bvRes.rowCount === 0) {
+    // Buscar mensagem(ns) de boas-vindas vinculada(s) a este grupo via tabela de junção
+    const bvRes = await query(
+      `SELECT b.*
+       FROM boas_vindas b
+       JOIN boas_vindas_grupos bvg ON bvg.boas_vindas_id = b.id
+       WHERE bvg.grupo_id = $1 AND b.ativo = true
+       ORDER BY b.id ASC`,
+      [grupo.id]
+    );
+    if (!bvRes.rowCount || bvRes.rowCount === 0) {
       console.log(`ℹ️ [Webhook] Nenhuma mensagem de boas-vindas ativa para o grupo "${grupo.nome}".`);
       return res.status(200).json({ status: 'ignored', reason: 'Mensagem de boas-vindas não cadastrada ou inativa' });
+    }
+
+    if (bvRes.rowCount > 1) {
+      console.warn(`⚠️ [Webhook Warning] Foram encontradas ${bvRes.rowCount} mensagens de boas-vindas ativas vinculadas ao mesmo grupo "${grupo.nome}" (ID: ${grupo.id}). Utilizando a primeira encontrada (ID: ${bvRes.rows[0].id}).`);
     }
 
     const boasVindas = bvRes.rows[0];

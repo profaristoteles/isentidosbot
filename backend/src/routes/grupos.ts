@@ -13,12 +13,11 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const result = await query(`
       SELECT g.*, 
-             b.mensagem as boas_vindas_mensagem,
-             b.ativo as boas_vindas_ativo,
+             (SELECT b.mensagem FROM boas_vindas b JOIN boas_vindas_grupos bvg ON bvg.boas_vindas_id = b.id WHERE bvg.grupo_id = g.id AND b.ativo = true ORDER BY b.id ASC LIMIT 1) as boas_vindas_mensagem,
+             (SELECT b.ativo FROM boas_vindas b JOIN boas_vindas_grupos bvg ON bvg.boas_vindas_id = b.id WHERE bvg.grupo_id = g.id AND b.ativo = true ORDER BY b.id ASC LIMIT 1) as boas_vindas_ativo,
              (SELECT COUNT(*) FROM agendamentos a WHERE a.grupo_id = g.id AND a.status = 'pendente') as agendamentos_pendentes,
              (SELECT COUNT(*) FROM integracoes i WHERE i.grupo_id = g.id AND i.ativo = true) as integracoes_ativas
       FROM grupos g
-      LEFT JOIN boas_vindas b ON b.grupo_id = g.id
       ORDER BY g.nome ASC
     `);
     return res.json(result.rows);
