@@ -10,24 +10,60 @@ const parser = new Parser({
 const FORTALEZA_TZ = 'America/Fortaleza';
 
 /**
- * 1. Cron de Agendamento de Arquivos e Mensagens (Roda a cada minuto)
+ * Helper para obter detalhes de data e hora no fuso America/Fortaleza
+ */
+function getFortalezaComponents(date: Date = new Date()) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: FORTALEZA_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    weekday: 'short',
+  });
+  const parts = formatter.formatToParts(date);
+  const m: Record<string, string> = {};
+  parts.forEach((p) => {
+    m[p.type] = p.value;
+  });
+  let hr = m.hour === '24' ? '00' : m.hour;
+  if (hr.length === 1) hr = '0' + hr;
+  let min = m.minute;
+  if (min.length === 1) min = '0' + min;
+
+  const dayOfWeekMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dayOfWeek = dayOfWeekMap[m.weekday] ?? 0;
+
+  const dateStr = `${m.year}-${m.month}-${m.day}`; // YYYY-MM-DD em Fortaleza
+  const timeStr = `${hr}:${min}`; // HH:mm em Fortaleza
+
+  return { dateStr, timeStr, dayOfWeek, hour: Number(hr), minute: Number(min) };
+}
+
+/**
+ * 1. Cron de Agendamento de Arquivos e Mensagens Únicas (Roda a cada minuto)
  */
 async function processScheduledDispatches() {
   try {
-    // Buscar agendamentos pendentes cuja data_envio seja menor ou igual ao horário atual em Fortaleza
+    // Buscar agendamentos pendentes (únicos, recorrente = false ou NULL) cuja data_envio seja <= horário atual em Fortaleza
     const selectRes = await query(`
       SELECT a.*, g.jid_whatsapp, g.nome as grupo_nome
       FROM agendamentos a
       JOIN grupos g ON a.grupo_id = g.id
       WHERE a.status = 'pendente' 
+        AND (a.recorrente = false OR a.recorrente IS NULL)
         AND g.ativo = true
+        AND a.data_envio IS NOT NULL
         AND a.data_envio <= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza')
       ORDER BY a.data_envio ASC
     `);
 
     if (selectRes.rows.length === 0) return;
 
-    console.log(`⏰ [CRON] Encontrado(s) ${selectRes.rows.length} envio(s) agendado(s) para processar...`);
+    console.log(`⏰ [CRON] Encontrado(s) ${selectRes.rows.length} envio(s) agendado(s) único(s) para processar...`);
 
     for (const item of selectRes.rows) {
       try {
@@ -83,7 +119,131 @@ async function processScheduledDispatches() {
       }
     }
   } catch (error) {
-    console.error('❌ [CRON Error] Erro no processamento de agendamentos:', error);
+    console.error('❌ [CRON Error] Erro no processamento de agendamentos únicos:', error);
+  }
+}
+
+/**
+ * 1b. Cron de Processamento de Agendamentos Recorrentes (Roda a cada minuto)
+ */
+export async function processRecurringDispatches() {
+  try {
+    const selectRes = await query(`
+      SELECT a.*, g.jid_whatsapp, g.nome as grupo_nome
+      FROM agendamentos a
+      JOIN grupos g ON a.grupo_id = g.id
+      WHERE a.recorrente = true
+        AND a.status = 'ativo'
+        AND g.ativo = true
+      ORDER BY a.id ASC
+    `);
+
+    if (selectRes.rows.length === 0) return;
+
+    const now = new Date();
+    const currentFortaleza = getFortalezaComponents(now);
+
+    for (const item of selectRes.rows) {
+      try {
+        // 1. Verificar se data_fim está definida e já passou
+        if (item.data_fim) {
+          const endTimestamp = new Date(item.data_fim).getTime();
+          if (endTimestamp < now.getTime()) {
+            await query(`UPDATE agendamentos SET status = 'inativo' WHERE id = $1`, [item.id]);
+            console.log(`ℹ️ [CRON Recorrente] Agendamento #${item.id} expirou data_fim e foi marcado como inativo.`);
+            continue;
+          }
+        }
+
+        // 2. Verificar horário do dia (horario no formato HH:mm ou HH:mm:ss)
+        if (!item.horario) continue;
+        const itemHorarioStr = String(item.horario).slice(0, 5); // Ex: "09:00"
+        if (itemHorarioStr !== currentFortaleza.timeStr) {
+          continue; // Não é o minuto exato de disparo
+        }
+
+        // 3. Regra de Recorrência
+        if (item.tipo_recorrencia === 'dias_semana') {
+          const diasSemana: number[] = Array.isArray(item.dias_semana) ? item.dias_semana : [];
+          if (!diasSemana.includes(currentFortaleza.dayOfWeek)) {
+            continue; // Hoje não é um dos dias da semana configurados
+          }
+
+          // Verificar se já foi executado hoje (fuso America/Fortaleza)
+          if (item.ultima_execucao) {
+            const lastExecFortaleza = getFortalezaComponents(new Date(item.ultima_execucao));
+            if (lastExecFortaleza.dateStr === currentFortaleza.dateStr) {
+              continue; // Já executou hoje
+            }
+          }
+        } else if (item.tipo_recorrencia === 'intervalo_dias') {
+          const intervalo = Number(item.intervalo_dias) || 1;
+          const refDate = item.ultima_execucao ? new Date(item.ultima_execucao) : new Date(item.criado_em);
+          const diffMs = now.getTime() - refDate.getTime();
+          const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+          if (item.ultima_execucao && diffDays < (intervalo - 0.05)) {
+            continue; // Ainda não se passaram intervalo_dias desde a última execução
+          }
+        } else {
+          continue;
+        }
+
+        // 4. Travar concorrência: Atualizar ultima_execucao imediatamente para a hora atual
+        const previousUltimaExecucao = item.ultima_execucao;
+        await query(`UPDATE agendamentos SET ultima_execucao = CURRENT_TIMESTAMP WHERE id = $1`, [item.id]);
+
+        // 5. Realizar disparo
+        try {
+          let response;
+          if (item.arquivo_url && item.arquivo_url.trim() !== '') {
+            response = await sendMediaMessage(
+              item.jid_whatsapp,
+              item.arquivo_url,
+              item.nome_arquivo || 'arquivo.pdf',
+              item.mensagem || ''
+            );
+          } else if (item.mensagem) {
+            response = await sendTextMessage(item.jid_whatsapp, item.mensagem);
+          }
+
+          // Gravar Log de sucesso com tipo_evento: "agendamento_recorrente"
+          await query(
+            `INSERT INTO logs (tipo_evento, grupo_id, detalhe, status) VALUES ($1, $2, $3, $4)`,
+            [
+              'agendamento_recorrente',
+              item.grupo_id,
+              `Disparo recorrente #${item.id} ("${item.nome_arquivo || 'Texto'}") enviado com sucesso para o grupo "${item.grupo_nome}"`,
+              'sucesso',
+            ]
+          );
+
+          console.log(`✅ [CRON Recorrente] Agendamento #${item.id} enviado com sucesso para o grupo ${item.grupo_nome}`);
+        } catch (sendErr: any) {
+          const errorMsg = sendErr?.message || 'Falha ao enviar disparo recorrente';
+          // Rollback do timestamp de ultima_execucao em caso de falha de envio para permitir re-tentativa posterior
+          await query(`UPDATE agendamentos SET ultima_execucao = $1, erro_mensagem = $2 WHERE id = $3`, [
+            previousUltimaExecucao,
+            errorMsg,
+            item.id,
+          ]);
+
+          await query(
+            `INSERT INTO logs (tipo_evento, grupo_id, detalhe, status) VALUES ($1, $2, $3, $4)`,
+            [
+              'agendamento_recorrente',
+              item.grupo_id,
+              `Falha no disparo recorrente #${item.id} ("${item.nome_arquivo || 'Texto'}"): ${errorMsg}`,
+              'erro',
+            ]
+          );
+        }
+      } catch (itemErr: any) {
+        console.error(`❌ [CRON Recorrente Error] Falha ao processar item #${item.id}:`, itemErr.message);
+      }
+    }
+  } catch (error) {
+    console.error('❌ [CRON Error] Erro no processamento de agendamentos recorrentes:', error);
   }
 }
 
@@ -484,9 +644,10 @@ export async function processContentDrip() {
 export function initCronJobs() {
   console.log(`⏰ Inicializando agendadores de tarefas (Fuso: ${FORTALEZA_TZ})...`);
 
-  // Disparo de mensagens e mídias a cada 1 minuto
+  // Disparo de mensagens e mídias a cada 1 minuto (Únicos e Recorrentes)
   cron.schedule('* * * * *', () => {
     processScheduledDispatches();
+    processRecurringDispatches();
   }, { timezone: FORTALEZA_TZ });
 
   // Checagem de novas publicações (YouTube, Instagram, Blogs) a cada 15 minutos

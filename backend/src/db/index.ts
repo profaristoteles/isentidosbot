@@ -108,6 +108,16 @@ export async function initDb() {
     await runStep('Criar índice idx_boas_vindas_grupos_bv', 'CREATE INDEX IF NOT EXISTS idx_boas_vindas_grupos_bv ON boas_vindas_grupos (boas_vindas_id);');
     await runStep('Criar índice idx_boas_vindas_grupos_grupo', 'CREATE INDEX IF NOT EXISTS idx_boas_vindas_grupos_grupo ON boas_vindas_grupos (grupo_id);');
 
+    // 5. Migrações de Agendamento Recorrente
+    await runStep('Adicionar coluna recorrente em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS recorrente BOOLEAN DEFAULT false;');
+    await runStep('Adicionar coluna tipo_recorrencia em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS tipo_recorrencia VARCHAR(50);');
+    await runStep('Adicionar coluna dias_semana em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS dias_semana INTEGER[];');
+    await runStep('Adicionar coluna intervalo_dias em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS intervalo_dias INTEGER;');
+    await runStep('Adicionar coluna horario em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS horario TIME;');
+    await runStep('Adicionar coluna data_fim em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS data_fim TIMESTAMPTZ;');
+    await runStep('Adicionar coluna ultima_execucao em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS ultima_execucao TIMESTAMPTZ;');
+    await runStep('Remover NOT NULL de agendamentos.data_envio', 'ALTER TABLE agendamentos ALTER COLUMN data_envio DROP NOT NULL;');
+
     console.log('✅ Todas as tabelas, migrações e índices foram verificados e sincronizados com sucesso.');
 
     // Criar Usuário Admin Padrão se não existir

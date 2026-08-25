@@ -95,8 +95,16 @@ router.post('/evolution', async (req: Request, res: Response) => {
 
     const boasVindas = bvRes.rows[0];
 
-    for (const item of participants) {
+    for (let i = 0; i < participants.length; i++) {
+      const item = participants[i];
       try {
+        // Se não for o primeiro participante do lote, aguarda delay de 5 a 15 segundos antes de enviar
+        if (i > 0) {
+          const delayMs = Math.floor(Math.random() * (15000 - 5000 + 1)) + 5000;
+          console.log(`⏳ [Webhook] Aguardando delay aleatório de ${(delayMs / 1000).toFixed(1)}s antes de enviar boas-vindas ao participante #${i + 1}...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+
         let participantJid = '';
         if (typeof item === 'string') {
           participantJid = item;
