@@ -43,12 +43,32 @@ function getFortalezaComponents(date: Date = new Date()) {
   return { dateStr, timeStr, dayOfWeek, hour: Number(hr), minute: Number(min) };
 }
 
+// Controle de concorrência para evitar sobreposição de execuções do cron (Race Condition)
+let isProcessingScheduled = false;
+let isProcessingRecurring = false;
+
 /**
  * 1. Cron de Agendamento de Arquivos e Mensagens Únicas (Roda a cada minuto)
  */
 async function processScheduledDispatches() {
+  if (isProcessingScheduled) {
+    console.log('⏳ [CRON] Envio de agendamentos únicos já está em andamento. Pulando execução deste minuto...');
+    return;
+  }
+
+  isProcessingScheduled = true;
+
   try {
-    // Buscar agendamentos pendentes (únicos, recorrente = false ou NULL) cuja data_envio seja <= horário atual em Fortaleza
+    // 1. Recuperar agendamentos que eventualmente tenham ficado em 'processando' há mais de 10 minutos (ex: reinício do servidor)
+    await query(`
+      UPDATE agendamentos 
+      SET status = 'pendente' 
+      WHERE status = 'processando' 
+        AND (recorrente = false OR recorrente IS NULL)
+        AND data_envio < NOW() - INTERVAL '10 minutes'
+    `);
+
+    // 2. Buscar agendamentos pendentes (únicos, recorrente = false ou NULL) cuja data_envio seja <= horário atual em Fortaleza
     const selectRes = await query(`
       SELECT a.*, g.jid_whatsapp, g.nome as grupo_nome
       FROM agendamentos a
@@ -67,6 +87,18 @@ async function processScheduledDispatches() {
 
     for (let i = 0; i < selectRes.rows.length; i++) {
       const item = selectRes.rows[i];
+
+      // Trava atômica no banco: reservar marcando como 'processando' antes de iniciar o envio
+      const lockRes = await query(
+        `UPDATE agendamentos SET status = 'processando' WHERE id = $1 AND status = 'pendente' RETURNING id`,
+        [item.id]
+      );
+
+      if (lockRes.rowCount === 0) {
+        // Já foi capturado por outro fluxo ou cancelado/alterado
+        continue;
+      }
+
       try {
         let response;
         if (item.arquivo_url && item.arquivo_url.trim() !== '') {
@@ -130,6 +162,8 @@ async function processScheduledDispatches() {
     }
   } catch (error) {
     console.error('❌ [CRON Error] Erro no processamento de agendamentos únicos:', error);
+  } finally {
+    isProcessingScheduled = false;
   }
 }
 
@@ -137,6 +171,13 @@ async function processScheduledDispatches() {
  * 1b. Cron de Processamento de Agendamentos Recorrentes (Roda a cada minuto)
  */
 export async function processRecurringDispatches() {
+  if (isProcessingRecurring) {
+    console.log('⏳ [CRON Recorrente] Envio recorrente já em andamento. Pulando execução deste minuto...');
+    return;
+  }
+
+  isProcessingRecurring = true;
+
   try {
     const selectRes = await query(`
       SELECT a.*, g.jid_whatsapp, g.nome as grupo_nome
@@ -264,6 +305,8 @@ export async function processRecurringDispatches() {
     }
   } catch (error) {
     console.error('❌ [CRON Error] Erro no processamento de agendamentos recorrentes:', error);
+  } finally {
+    isProcessingRecurring = false;
   }
 }
 

@@ -287,11 +287,10 @@ router.post('/', upload.single('arquivo'), async (req: AuthRequest, res: Respons
         baseDate = new Date(data_envio);
       }
 
+      const baseIso = baseDate.toISOString();
+
       for (let i = 0; i < targetGrupoIds.length; i++) {
         const gid = targetGrupoIds[i];
-        // Escalonar o data_envio com o intervalo anti-bloqueio para cada grupo seguinte
-        const staggeredDate = new Date(baseDate.getTime() + (i * intervaloEnvioSegundos * 1000));
-        const staggeredIso = staggeredDate.toISOString();
 
         const insertRes = await query(
           `INSERT INTO agendamentos (
@@ -306,7 +305,7 @@ router.post('/', upload.single('arquivo'), async (req: AuthRequest, res: Respons
             nome_arquivo,
             tipo_arquivo,
             mensagem || '',
-            staggeredIso,
+            baseIso,
             intervaloEnvioSegundos,
             loteId,
           ]
