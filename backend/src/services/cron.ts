@@ -65,7 +65,8 @@ async function processScheduledDispatches() {
 
     console.log(`⏰ [CRON] Encontrado(s) ${selectRes.rows.length} envio(s) agendado(s) único(s) para processar...`);
 
-    for (const item of selectRes.rows) {
+    for (let i = 0; i < selectRes.rows.length; i++) {
+      const item = selectRes.rows[i];
       try {
         let response;
         if (item.arquivo_url && item.arquivo_url.trim() !== '') {
@@ -117,6 +118,15 @@ async function processScheduledDispatches() {
           ]
         );
       }
+
+      // Pausa de segurança anti-bloqueio entre envios para diferentes grupos
+      if (i < selectRes.rows.length - 1) {
+        const delaySec = item.intervalo_envio_segundos || 15;
+        const jitter = (Math.random() * 3) - 1; // Variação natural entre -1s e +2s
+        const waitSec = Math.max(3, delaySec + jitter);
+        console.log(`⏳ [CRON Anti-Bloqueio] Aguardando ${waitSec.toFixed(1)}s antes do próximo envio agendado (${i + 2}/${selectRes.rows.length})...`);
+        await new Promise((resolve) => setTimeout(resolve, waitSec * 1000));
+      }
     }
   } catch (error) {
     console.error('❌ [CRON Error] Erro no processamento de agendamentos únicos:', error);
@@ -143,7 +153,8 @@ export async function processRecurringDispatches() {
     const now = new Date();
     const currentFortaleza = getFortalezaComponents(now);
 
-    for (const item of selectRes.rows) {
+    for (let i = 0; i < selectRes.rows.length; i++) {
+      const item = selectRes.rows[i];
       try {
         // 1. Verificar se data_fim está definida e já passou
         if (item.data_fim) {
@@ -237,6 +248,15 @@ export async function processRecurringDispatches() {
               'erro',
             ]
           );
+        }
+
+        // Pausa de segurança anti-bloqueio entre envios recorrentes para diferentes grupos
+        if (i < selectRes.rows.length - 1) {
+          const delaySec = item.intervalo_envio_segundos || 15;
+          const jitter = (Math.random() * 3) - 1;
+          const waitSec = Math.max(3, delaySec + jitter);
+          console.log(`⏳ [CRON Recorrente Anti-Bloqueio] Aguardando ${waitSec.toFixed(1)}s antes do próximo grupo (${i + 2}/${selectRes.rows.length})...`);
+          await new Promise((resolve) => setTimeout(resolve, waitSec * 1000));
         }
       } catch (itemErr: any) {
         console.error(`❌ [CRON Recorrente Error] Falha ao processar item #${item.id}:`, itemErr.message);

@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS agendamentos (
     ultima_execucao TIMESTAMPTZ,
     status VARCHAR(50) DEFAULT 'pendente',
     erro_mensagem TEXT,
+    intervalo_envio_segundos INTEGER DEFAULT 15,
+    lote_id VARCHAR(50),
     criado_em TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -91,6 +93,7 @@ CREATE TABLE IF NOT EXISTS logs (
 
 -- Indices para otimização de consultas
 CREATE INDEX IF NOT EXISTS idx_agendamentos_status_data ON agendamentos (status, data_envio);
+CREATE INDEX IF NOT EXISTS idx_agendamentos_lote_id ON agendamentos (lote_id);
 CREATE INDEX IF NOT EXISTS idx_integracoes_ativo ON integracoes (ativo);
 CREATE INDEX IF NOT EXISTS idx_integracao_grupos_integracao ON integracao_grupos (integracao_id);
 CREATE INDEX IF NOT EXISTS idx_boas_vindas_grupos_bv ON boas_vindas_grupos (boas_vindas_id);

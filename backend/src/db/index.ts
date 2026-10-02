@@ -118,6 +118,11 @@ export async function initDb() {
     await runStep('Adicionar coluna ultima_execucao em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS ultima_execucao TIMESTAMPTZ;');
     await runStep('Remover NOT NULL de agendamentos.data_envio', 'ALTER TABLE agendamentos ALTER COLUMN data_envio DROP NOT NULL;');
 
+    // 6. Migrações de Multi-grupos e Controle de Intervalo Anti-Bloqueio
+    await runStep('Adicionar coluna intervalo_envio_segundos em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS intervalo_envio_segundos INTEGER DEFAULT 15;');
+    await runStep('Adicionar coluna lote_id em agendamentos', 'ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS lote_id VARCHAR(50);');
+    await runStep('Criar índice idx_agendamentos_lote_id', 'CREATE INDEX IF NOT EXISTS idx_agendamentos_lote_id ON agendamentos (lote_id);');
+
     console.log('✅ Todas as tabelas, migrações e índices foram verificados e sincronizados com sucesso.');
 
     // Criar Usuário Admin Padrão se não existir
