@@ -57,7 +57,7 @@ async function processScheduledDispatches() {
         AND (a.recorrente = false OR a.recorrente IS NULL)
         AND g.ativo = true
         AND a.data_envio IS NOT NULL
-        AND a.data_envio <= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza')
+        AND a.data_envio <= CURRENT_TIMESTAMP
       ORDER BY a.data_envio ASC
     `);
 

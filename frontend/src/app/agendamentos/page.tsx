@@ -125,9 +125,9 @@ export default function AgendamentosPage() {
   const handleOpenCreateModal = () => {
     setEditingId(null);
     const now = new Date();
-    now.setMinutes(now.getMinutes() + 10);
-    const isoString = now.toISOString().slice(0, 16);
-    setDataEnvio(isoString);
+    now.setMinutes(now.getMinutes() + 5);
+    const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setDataEnvio(localIso);
     setMensagem('');
     setArquivo(null);
     setModoEnvio('agendado');

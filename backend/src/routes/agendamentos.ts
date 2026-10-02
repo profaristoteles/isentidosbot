@@ -279,7 +279,13 @@ router.post('/', upload.single('arquivo'), async (req: AuthRequest, res: Respons
 
     } else {
       // 3. AGENDAMENTO PONTUAL MULTI-GRUPOS COM HORÁRIOS ESCALONADOS (STAGGERED DELAY)
-      const baseDate = new Date(data_envio);
+      let baseDate: Date;
+      if (typeof data_envio === 'string' && !data_envio.includes('Z') && !data_envio.includes('+') && !data_envio.includes('-03')) {
+        // Se vier como formato datetime-local "YYYY-MM-DDTHH:mm", garantir fuso oficial de Fortaleza (UTC-3)
+        baseDate = new Date(`${data_envio}:00-03:00`);
+      } else {
+        baseDate = new Date(data_envio);
+      }
 
       for (let i = 0; i < targetGrupoIds.length; i++) {
         const gid = targetGrupoIds[i];
@@ -374,7 +380,17 @@ router.put('/:id', upload.single('arquivo'), async (req: AuthRequest, res: Respo
       : (current.intervalo_envio_segundos || 15);
 
     const updatedStatus = status || (isRecorrente ? 'ativo' : 'pendente');
-    const dataEnvioValue = !isRecorrente ? (data_envio || current.data_envio) : null;
+    let dataEnvioValue: string | null = null;
+    if (!isRecorrente) {
+      const rawDt = data_envio || current.data_envio;
+      if (rawDt) {
+        if (typeof rawDt === 'string' && !rawDt.includes('Z') && !rawDt.includes('+') && !rawDt.includes('-03')) {
+          dataEnvioValue = new Date(`${rawDt}:00-03:00`).toISOString();
+        } else {
+          dataEnvioValue = new Date(rawDt).toISOString();
+        }
+      }
+    }
 
     const result = await query(
       `UPDATE agendamentos
